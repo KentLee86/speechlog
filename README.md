@@ -67,3 +67,5 @@ uv build
 ```
 
 실제 음성과 전사 결과는 무시되는 `work/`에만 보관하고, 커밋에는 가상 fixture만 사용합니다. 개발 정본 지침은 `AGENTS.md`, `CLAUDE.md`는 그 심링크입니다.
+
+잘못된 UTF-8 입력은 `read_error`, 잘못된 구간·화자·metadata 타입은 `invalid_input`으로 반환합니다. 화자 ID에 boolean을 사용할 수 없고, `HH:MM:SS`의 음수 구성 요소도 거부합니다. 프로젝트 라이선스는 [MIT](LICENSE)입니다.

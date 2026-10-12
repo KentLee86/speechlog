@@ -55,3 +55,23 @@ def test_only_query_tool_commands_are_exposed():
         assert json.loads(result.stderr)['error']['code'] == 'usage_error'
     import speechlog
     assert not hasattr(speechlog, 'transcribe')
+
+def test_malformed_input_errors_do_not_leak_tracebacks(tmp_path):
+    path = tmp_path/'malformed.json'
+    invalid_records = [
+        {'segments': [None]}, {'segments': [1]},
+        {'segments': [], 'speakers': [{'id': True}]},
+        {'segments': [], 'speakers': [{'id': 1, 'label': []}]},
+        {'segments': [], 'metadata': []},
+    ]
+    for data in invalid_records:
+        path.write_text(json.dumps(data))
+        result = call('query', path, '--json')
+        assert result.returncode == 3 and result.stdout == ''
+        assert json.loads(result.stderr)['error']['code'] == 'invalid_input'
+        assert 'Traceback' not in result.stderr
+    path.write_bytes(b'\xff\xfe')
+    result = call('inspect', path)
+    assert result.returncode == 3 and result.stdout == ''
+    assert json.loads(result.stderr)['error']['code'] == 'read_error'
+    assert 'Traceback' not in result.stderr

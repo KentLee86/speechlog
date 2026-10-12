@@ -19,7 +19,12 @@ def seconds(value: str | float | None) -> float | None:
         parts = str(value).split(":")
         if len(parts) not in (1, 3):
             raise ValueError()
-        result = float(parts[0]) if len(parts) == 1 else float(parts[0])*3600+float(parts[1])*60+float(parts[2])
+        components = [float(part) for part in parts]
+        if any(not math.isfinite(part) or part < 0 for part in components):
+            raise ValueError()
+        if len(parts) == 3 and (not components[0].is_integer() or not components[1].is_integer()):
+            raise ValueError()
+        result = components[0] if len(parts) == 1 else components[0]*3600+components[1]*60+components[2]
         if not math.isfinite(result) or result < 0:
             raise ValueError()
         if len(parts) == 3 and (float(parts[1]) >= 60 or float(parts[2]) >= 60):
@@ -69,7 +74,7 @@ class Transcript:
     def load(cls, path: str | Path) -> Transcript:
         try:
             return cls.from_dict(json.loads(Path(path).read_text(encoding="utf-8")))
-        except (OSError, json.JSONDecodeError) as error:
+        except (OSError, UnicodeError, json.JSONDecodeError) as error:
             raise SpeechlogError(str(error), "read_error") from error
 
     @classmethod
@@ -77,7 +82,7 @@ class Transcript:
         try:
             if not isinstance(data, dict):
                 raise ValueError("JSON 객체가 필요합니다")
-            if data.get("schema_version", 1) != 1:
+            if type(data.get("schema_version", 1)) is not int or data.get("schema_version", 1) != 1:
                 raise ValueError("지원하지 않는 schema_version")
             rows = data.get("segments", data.get("turns", data.get("words")))
             if not isinstance(rows, list):
@@ -85,10 +90,14 @@ class Transcript:
             segments = []
             ids = set()
             for i, row in enumerate(rows):
+                if not isinstance(row, dict):
+                    raise ValueError("각 segment/turn/word는 JSON 객체여야 합니다")
                 ident = row.get("id", i + 1)
                 if isinstance(ident, bool) or not isinstance(ident, (str, int)) or ident in ids:
                     raise ValueError("segment id는 고유한 문자열 또는 정수여야 합니다")
                 ids.add(ident)
+                if any(isinstance(row[key], bool) or not isinstance(row[key], (int, float)) for key in ("start", "end")):
+                    raise ValueError("segment 시간은 숫자여야 합니다")
                 start, end = float(row["start"]), float(row["end"])
                 if not math.isfinite(start) or not math.isfinite(end) or not 0 <= start <= end:
                     raise ValueError("잘못된 segment 시간")
@@ -99,20 +108,45 @@ class Transcript:
                 if not isinstance(text, str):
                     raise ValueError("text는 문자열이어야 합니다")
                 overlap = row.get("overlap", row.get("has_overlap", bool(row.get("overlap_speakers"))))
-                segments.append(Segment(ident, start, end, speaker, text, bool(overlap), bool(row.get("uncertain", speaker is None))))
-            duration = float(data.get("duration", max((s.end for s in segments), default=0)))
+                uncertain = row.get("uncertain", speaker is None)
+                if not isinstance(overlap, bool) or not isinstance(uncertain, bool):
+                    raise ValueError("overlap/uncertain은 boolean이어야 합니다")
+                segments.append(Segment(ident, start, end, speaker, text, overlap, uncertain))
+            raw_duration = data.get("duration", max((s.end for s in segments), default=0))
+            if isinstance(raw_duration, bool) or not isinstance(raw_duration, (int, float)):
+                raise ValueError("duration은 숫자여야 합니다")
+            duration = float(raw_duration)
             if not math.isfinite(duration) or duration < 0 or any(s.end > duration for s in segments):
                 raise ValueError("duration 범위 밖 segment")
             supplied = data.get("speakers", [])
-            speakers = [Speaker(s["id"], s.get("label", f"화자 {s['id']}")) for s in supplied]
+            if not isinstance(supplied, list):
+                raise ValueError("speakers는 배열이어야 합니다")
+            speakers = []
+            for supplied_speaker in supplied:
+                if not isinstance(supplied_speaker, dict):
+                    raise ValueError("각 speaker는 JSON 객체여야 합니다")
+                ident = supplied_speaker["id"]
+                if isinstance(ident, bool) or not isinstance(ident, (str, int)):
+                    raise ValueError("speaker id는 문자열 또는 정수여야 합니다")
+                label = supplied_speaker.get("label", f"화자 {ident}")
+                if not isinstance(label, str):
+                    raise ValueError("speaker label은 문자열이어야 합니다")
+                speakers.append(Speaker(ident, label))
             known = {s.id for s in speakers}
             if len(known) != len(speakers):
                 raise ValueError("중복 speaker id")
             for s in segments:
                 if s.speaker is not None and s.speaker not in known:
                     speakers.append(Speaker(s.speaker, f"화자 {s.speaker}")); known.add(s.speaker)
-            return cls(str(data.get("source_id", "legacy")), duration, tuple(speakers), tuple(segments), data.get("metadata", {}))
-        except (KeyError, TypeError, ValueError) as error:
+            source_id = data.get("source_id", "legacy")
+            if not isinstance(source_id, str):
+                raise ValueError("source_id는 문자열이어야 합니다")
+            metadata = data.get("metadata", {})
+            if not isinstance(metadata, dict) or any(not isinstance(key, str) for key in metadata):
+                raise ValueError("metadata는 문자열 키를 가진 JSON 객체여야 합니다")
+            json.dumps(metadata, allow_nan=False)
+            return cls(source_id, duration, tuple(speakers), tuple(segments), metadata)
+        except (KeyError, TypeError, ValueError, OverflowError) as error:
             raise SpeechlogError(str(error)) from error
 
     def to_dict(self) -> dict:
@@ -125,6 +159,12 @@ class Transcript:
         Path(path).write_text(self.to_json(indent=2) + "\n", encoding="utf-8")
 
     def query(self, *, speaker=None, start=None, end=None, text=None, search=None, regex=False, mode="overlap", context_turns=0, limit=None, offset=0) -> QueryResult:
+        if speaker is not None and (isinstance(speaker, bool) or not isinstance(speaker, (str, int))):
+            raise SpeechlogError("speaker는 문자열 또는 정수여야 합니다")
+        if not isinstance(regex, bool):
+            raise SpeechlogError("regex는 boolean이어야 합니다")
+        if any(value is not None and not isinstance(value, str) for value in (text, search)):
+            raise SpeechlogError("text/search는 문자열이어야 합니다")
         start, end = seconds(start), seconds(end)
         if mode not in ("overlap", "contained") or (start is not None and end is not None and start > end):
             raise SpeechlogError("잘못된 시간 범위 또는 조회 mode")

@@ -56,3 +56,55 @@ def test_duplicate_id_guard(transcript):
     data['segments'][1]['id'] = 'a'
     with pytest.raises(SpeechlogError):
         Transcript.from_dict(data)
+
+@pytest.mark.parametrize('value', ['01:-1:00', '01:00:-1', '-1:59:59', '01:00:nan', '01:00:inf', '01:1.5:00'])
+def test_invalid_time_components(transcript, value):
+    with pytest.raises(SpeechlogError) as caught:
+        transcript.query(start=value)
+    assert caught.value.code == 'invalid_input'
+
+@pytest.mark.parametrize('data', [
+    {'segments': [None]}, {'segments': [1]}, {'turns': ['invalid']}, {'words': [[]]},
+    {'segments': [], 'speakers': None}, {'segments': [], 'speakers': [None]},
+    {'segments': [], 'speakers': [{'id': True}]},
+    {'segments': [], 'speakers': [{'id': False}]},
+    {'segments': [], 'speakers': [{'id': []}]},
+    {'segments': [], 'speakers': [{'id': 2, 'label': None}]},
+    {'segments': [], 'speakers': [{'id': 2, 'label': 9}]},
+    {'segments': [], 'metadata': []}, {'segments': [], 'metadata': None},
+    {'segments': [], 'metadata': {2: 'invalid'}},
+    {'segments': [], 'metadata': {'unsupported': object()}},
+    {'segments': [], 'schema_version': True}, {'segments': [], 'source_id': []},
+    {'segments': [], 'duration': True},
+    {'segments': [{'start': True, 'end': 2}]},
+    {'segments': [{'start': 1, 'end': 2, 'speaker': True}]},
+    {'segments': [{'start': 1, 'end': 2, 'overlap': 'false'}]},
+    {'segments': [{'start': 1, 'end': 2, 'uncertain': 0}]},
+])
+def test_typed_input_errors(data):
+    with pytest.raises(SpeechlogError) as caught:
+        Transcript.from_dict(data)
+    assert caught.value.code == 'invalid_input'
+
+@pytest.mark.parametrize('kwargs', [
+    {'text': 1}, {'search': []}, {'text': b'bytes', 'regex': True},
+    {'text': 'ok', 'regex': 'yes'}, {'text': 'ok', 'regex': 1},
+    {'speaker': True}, {'speaker': []},
+])
+def test_query_type_errors(transcript, kwargs):
+    with pytest.raises(SpeechlogError) as caught:
+        transcript.query(**kwargs)
+    assert caught.value.code == 'invalid_input'
+
+def test_invalid_utf8_is_read_error(tmp_path):
+    path = tmp_path/'invalid.json'
+    path.write_bytes(b'\xff\xfe')
+    with pytest.raises(SpeechlogError) as caught:
+        Transcript.load(path)
+    assert caught.value.code == 'read_error'
+
+def test_valid_typed_speakers_metadata_roundtrip():
+    data = {'source_id': 'fiction', 'segments': [], 'speakers': [{'id': 'a', 'label': '가상 화자'}], 'metadata': {'nested': {'list': [None, True, 1, 'value']}}}
+    imported = Transcript.from_dict(data)
+    assert imported.speakers[0].label == '가상 화자'
+    assert json.loads(imported.to_json())['metadata'] == data['metadata']
