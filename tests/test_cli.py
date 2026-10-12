@@ -44,11 +44,14 @@ def test_structured_errors(tmp_path):
     assert call('query',path,'--regex','--text','[').returncode == 3
 
 
-def test_pending_remote_commands_are_structured(tmp_path):
-    for args in [('transcribe', 'fiction.wav', '--out', str(tmp_path/'out.json')), ('models', 'list'), ('doctor',)]:
-        result = call(*args)
-        assert result.returncode == 5 and result.stdout == ''
-        assert json.loads(result.stderr)['error']['code'] == 'feature_pending'
-    assert not (tmp_path/'out.json').exists()
-    help_output = call('transcribe', '--help').stdout
-    assert '--whisper-bin' not in help_output and '--device' not in help_output
+def test_only_query_tool_commands_are_exposed():
+    help_output = call('--help')
+    assert help_output.returncode == 0
+    assert '{query,inspect,speakers,export}' in help_output.stdout
+    for command in ('transcribe', 'models', 'doctor'):
+        assert command not in help_output.stdout
+        result = call(command)
+        assert result.returncode == 2 and result.stdout == ''
+        assert json.loads(result.stderr)['error']['code'] == 'usage_error'
+    import speechlog
+    assert not hasattr(speechlog, 'transcribe')

@@ -11,7 +11,7 @@ class Parser(argparse.ArgumentParser):
         raise SpeechlogError(message, 'usage_error')
 
 def parser():
-    root = Parser(prog='speechlog', description='전사 API 클라이언트 및 시간·화자 조회')
+    root = Parser(prog='speechlog', description='전사 결과의 화자·시간·문장 조회 및 내보내기')
     root.add_argument('--version', action='version', version='speechlog 0.1.0')
     commands = root.add_subparsers(dest='command', required=True)
     q = commands.add_parser('query', help='화자·시간·문장 조회')
@@ -34,16 +34,6 @@ def parser():
     e.add_argument('file')
     e.add_argument('--format', choices=['txt', 'srt', 'json', 'jsonl'], required=True)
     e.add_argument('--out')
-    t = commands.add_parser('transcribe', help='원격 API 전사(서버 계약 연결 예정)')
-    t.add_argument('input')
-    t.add_argument('--profile', choices=['call-ko'], default='call-ko')
-    t.add_argument('--out', required=True)
-    t.add_argument('--diarize', action='store_true')
-    t.add_argument('--preprocess', choices=['none', 'dynaudnorm'], default='dynaudnorm')
-    m = commands.add_parser('models', help='서버 모델 목록(서버 계약 연결 예정)')
-    mc = m.add_subparsers(dest='model_command', required=True)
-    mc.add_parser('list')
-    commands.add_parser('doctor', help='API 연결 진단(서버 계약 연결 예정)')
     return root
 
 def emit(value):
@@ -52,8 +42,6 @@ def emit(value):
 def main(argv=None):
     try:
         args = parser().parse_args(argv)
-        if args.command in ('transcribe', 'models', 'doctor'):
-            raise SpeechlogError('원격 API 서버 계약 연결 전입니다. 로컬 조회와 내보내기는 사용할 수 있습니다.', 'feature_pending')
         transcript = Transcript.load(args.file)
         if args.command == 'query':
             result = transcript.query(speaker=args.speaker, start=args.start, end=args.end, text=args.text, regex=args.regex, mode=args.mode, context_turns=args.context_turns, limit=args.limit, offset=args.offset)
@@ -74,7 +62,7 @@ def main(argv=None):
     except (SpeechlogError, OSError) as error:
         code = getattr(error, 'code', 'io_error')
         print(json.dumps({'error': {'code': code, 'message': str(error)}}, ensure_ascii=False), file=sys.stderr)
-        return {'usage_error': 2, 'invalid_input': 3, 'invalid_regex': 3, 'read_error': 3, 'io_error': 4, 'dependency_missing': 5, 'model_error': 6, 'engine_error': 7, 'feature_pending': 5}.get(code, 1)
+        return {'usage_error': 2, 'invalid_input': 3, 'invalid_regex': 3, 'read_error': 3, 'io_error': 4}.get(code, 1)
 
 if __name__ == '__main__':
     raise SystemExit(main())
