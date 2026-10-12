@@ -34,6 +34,24 @@ def parser():
     e.add_argument('file')
     e.add_argument('--format', choices=['txt', 'srt', 'json', 'jsonl'], required=True)
     e.add_argument('--out')
+    st = commands.add_parser('stats', help='화자·문자·단어·시간 통계')
+    w = commands.add_parser('words', help='단어·phrase·정규식 빈도')
+    for p in (st, w):
+        p.add_argument('file')
+        p.add_argument('--speaker')
+        p.add_argument('--start')
+        p.add_argument('--end')
+        p.add_argument('--mode', choices=['overlap', 'contained'], default='overlap')
+        p.add_argument('--json', action='store_true', help='JSON 출력(기본값)')
+    st.add_argument('--text', '--search', dest='text')
+    st.add_argument('--regex', action='store_true')
+    w.add_argument('--text', help='집계할 토큰·phrase·정규식')
+    w.add_argument('--search', '--filter-text', dest='search', help='집계 전 구간 문장 필터')
+    w.add_argument('--top', type=int)
+    w.add_argument('--case-sensitive', action='store_true')
+    counting = w.add_mutually_exclusive_group()
+    counting.add_argument('--count-mode', choices=['token', 'literal', 'regex'], default='token')
+    counting.add_argument('--regex', action='store_const', const='regex', dest='count_mode')
     return root
 
 def emit(value):
@@ -50,6 +68,10 @@ def main(argv=None):
                 for s in result.to_dict()['segments']:
                     print(f"{s['start']:.3f}-{s['end']:.3f} [{s['speaker']}] {'*' if s['matched'] else '~'} {s['text']}")
                 print(f'일치 {result.total}개; 다음 offset={result.next_offset}', file=sys.stderr)
+        elif args.command == 'stats':
+            emit(transcript.stats(speaker=args.speaker, start=args.start, end=args.end, text=args.text, regex=args.regex, mode=args.mode).to_dict())
+        elif args.command == 'words':
+            emit(transcript.words(speaker=args.speaker, start=args.start, end=args.end, search=args.search, mode=args.mode, text=args.text, top=args.top, case_sensitive=args.case_sensitive, count_mode=args.count_mode).to_dict())
         elif args.command == 'inspect':
             emit({'schema_version': transcript.schema_version, 'source_id': transcript.source_id, 'duration': transcript.duration, 'segments': len(transcript.segments), 'speakers': len(transcript.speakers), 'overlap_segments': sum(s.overlap for s in transcript.segments), 'uncertain_segments': sum(s.uncertain for s in transcript.segments), 'metadata': transcript.metadata})
         elif args.command == 'speakers':

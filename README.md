@@ -81,3 +81,14 @@ phrase = transcript.words(text="확인 부탁", count_mode="literal").to_dict()
 ```
 
 화자별 구간·문자·공백 토큰 수, 클립된 시간의 단순합과 합집합, 녹음 길이와 발화 coverage를 제공합니다. 선언 화자와 관측 화자, 미상 화자를 구별합니다. 녹음 단위로만 시간이 있는 자료는 정밀 발화시간 대신 unavailable/estimated 정보를 반환합니다. 계산 정책은 [통계 계약](docs/statistics.md)을 따릅니다.
+
+
+```sh
+speechlog stats transcript.json --speaker 2 --start 60 --end 90 --json
+speechlog words transcript.json --speaker 2 --top 20 --json
+speechlog words transcript.json --text 확인 --case-sensitive --json
+speechlog words transcript.json --text '확인 부탁' --count-mode literal --json
+speechlog words transcript.json --text '확인|부탁' --regex --json
+```
+
+stats와 words는 기본 JSON 출력이며 `--json`을 명시할 수도 있습니다. stats의 `--text`는 구간 검색, words의 `--text`는 빈도를 셀 대상입니다. words에서 구간을 먼저 검색하려면 `--search` 또는 `--filter-text`를 사용합니다.

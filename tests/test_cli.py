@@ -47,7 +47,7 @@ def test_structured_errors(tmp_path):
 def test_only_query_tool_commands_are_exposed():
     help_output = call('--help')
     assert help_output.returncode == 0
-    assert '{query,inspect,speakers,export}' in help_output.stdout
+    assert '{query,inspect,speakers,export,stats,words}' in help_output.stdout
     for command in ('transcribe', 'models', 'doctor'):
         assert command not in help_output.stdout
         result = call(command)
@@ -75,3 +75,23 @@ def test_malformed_input_errors_do_not_leak_tracebacks(tmp_path):
     assert result.returncode == 3 and result.stdout == ''
     assert json.loads(result.stderr)['error']['code'] == 'read_error'
     assert 'Traceback' not in result.stderr
+
+
+def test_stats_words_cli_sdk_parity(tmp_path):
+    t, path = sample(tmp_path)
+    stats = call('stats', path, '--speaker', '2', '--start', '00:01:00', '--end', '90', '--json')
+    assert stats.returncode == 0 and stats.stderr == ''
+    assert json.loads(stats.stdout) == t.stats(speaker=2, start=60, end=90).to_dict()
+    for options, flags in [
+        ({'top':1}, ['--top','1']),
+        ({'text':'확인'}, ['--text','확인']),
+        ({'text':'가상 확인','count_mode':'literal'}, ['--text','가상 확인','--count-mode','literal']),
+        ({'text':'.','count_mode':'regex','case_sensitive':True}, ['--text','.','--regex','--case-sensitive']),
+        ({'search':'확인'}, ['--filter-text','확인']),
+    ]:
+        result=call('words',path,*flags,'--json')
+        assert result.returncode==0 and not result.stderr
+        assert json.loads(result.stdout)==t.words(**options).to_dict()
+    result=call('words',path,'--top','0')
+    assert result.returncode==3 and json.loads(result.stderr)['error']['code']=='invalid_input'
+    assert call('stats',path,'--start','01:-1:00').returncode==3
