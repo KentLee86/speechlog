@@ -92,3 +92,5 @@ speechlog words transcript.json --text '확인|부탁' --regex --json
 ```
 
 stats와 words는 기본 JSON 출력이며 `--json`을 명시할 수도 있습니다. stats의 `--text`는 구간 검색, words의 `--text`는 빈도를 셀 대상입니다. words에서 구간을 먼저 검색하려면 `--search` 또는 `--filter-text`를 사용합니다.
+
+버전 범프와 GitHub 태그·wheel/sdist 릴리스 절차는 [배포 문서](docs/releases.md)에 있습니다. 버전 정본은 SDK와 CLI, 패키지 빌드가 공유합니다.

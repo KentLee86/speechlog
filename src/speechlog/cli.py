@@ -3,6 +3,7 @@ import argparse
 import json
 from pathlib import Path
 import sys
+from ._version import __version__
 from .core import Transcript, SpeechlogError
 from .export import render
 
@@ -12,7 +13,7 @@ class Parser(argparse.ArgumentParser):
 
 def parser():
     root = Parser(prog='speechlog', description='전사 결과의 화자·시간·문장 조회 및 내보내기')
-    root.add_argument('--version', action='version', version='speechlog 0.1.0')
+    root.add_argument('--version', action='version', version=f'speechlog {__version__}')
     commands = root.add_subparsers(dest='command', required=True)
     q = commands.add_parser('query', help='화자·시간·문장 조회')
     q.add_argument('file')

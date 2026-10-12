@@ -9,3 +9,5 @@
 - 정본 문서는 AGENTS.md이며 CLAUDE.md는 이 파일의 심링크다.
 - speechlog는 이미 받은 전사 결과의 조회·검색·내보내기 도구다. 음성 전사, API 호출, 서버 운영, 모델 설치는 이 프로젝트의 범위 밖이다.
 - 통계는 core query 필터를 재사용한다. 시간은 조회 범위로 클립하고 단순합과 합집합을 구별한다. recording 단위 자료에는 정밀 발화시간을 만들지 않는다. 텍스트 토큰은 Unicode 공백 기준이며 형태소로 표현하지 않는다.
+- 버전 정본은 src/speechlog/_version.py 하나다. CLI와 wheel 버전은 이를 사용한다. 범프는 scripts/bump_version.py로 깨끗한 커밋에서 실행한다.
+- 태그·릴리스는 부모 리뷰 후 scripts/release.py로 테스트·빌드가 통과한 깨끗한 main 커밋에서 실행한다. 스크립트는 인증 정보를 만들거나 로그인하지 않는다.
