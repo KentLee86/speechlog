@@ -42,3 +42,13 @@ def test_structured_errors(tmp_path):
     assert call('query').returncode == 2
     assert call('query',tmp_path/'absent').returncode == 3
     assert call('query',path,'--regex','--text','[').returncode == 3
+
+
+def test_pending_remote_commands_are_structured(tmp_path):
+    for args in [('transcribe', 'fiction.wav', '--out', str(tmp_path/'out.json')), ('models', 'list'), ('doctor',)]:
+        result = call(*args)
+        assert result.returncode == 5 and result.stdout == ''
+        assert json.loads(result.stderr)['error']['code'] == 'feature_pending'
+    assert not (tmp_path/'out.json').exists()
+    help_output = call('transcribe', '--help').stdout
+    assert '--whisper-bin' not in help_output and '--device' not in help_output
