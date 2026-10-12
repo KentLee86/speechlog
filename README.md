@@ -15,3 +15,16 @@ print(result.to_json())
 조회 시간은 초 또는 `HH:MM:SS`입니다. 기본 `overlap`은 조회 범위와 겹치는 구간을, `contained`는 완전히 들어오는 구간을 고릅니다. 범위는 반열린 구간입니다. `context_turns`는 앞뒤 구간을 더하고 `matched/context`로 직접 검색 결과와 문맥을 구별합니다. `limit/offset`은 직접 일치 항목에 적용하며 `total/next_offset/truncated`로 잘림을 알립니다. 빈 결과는 정상입니다.
 
 개발 검증: `uv run pytest`. 실제 음성과 전사 결과는 무시되는 `work/`에만 보관합니다.
+
+## CLI 조회와 내보내기
+
+```sh
+speechlog query transcript.json --speaker 2 --start 60 --end 90 --json
+speechlog query transcript.json --search 확인 --context-turns 1 --limit 20 --offset 0 --json
+speechlog query transcript.json --text '^다음' --regex --mode contained --json
+speechlog inspect transcript.json
+speechlog speakers transcript.json
+speechlog export transcript.json --format srt --out transcript.srt
+```
+
+`--text`와 `--search`는 같은 옵션입니다. `--json`을 생략한 조회는 직접 일치에 `*`, 문맥에 `~`를 표시합니다. 결과는 stdout, 진단과 구조화된 오류는 stderr로 나갑니다. 종료 코드는 사용법 오류 2, 입력·조회 오류 3, 파일 쓰기 오류 4, 실행 의존성 누락 5, 모델 검증 오류 6, 엔진 실행 오류 7입니다. 빈 조회는 0입니다. TXT/SRT는 익명 화자와 겹침·확인 필요 표시를 포함하고 JSONL은 구간당 한 객체를 출력합니다.
