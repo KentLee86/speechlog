@@ -17,3 +17,6 @@ speechlog = "speechlog.cli:main"
 
 [dependency-groups]
 dev = ["pytest>=8", "build"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

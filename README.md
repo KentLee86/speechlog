@@ -69,3 +69,15 @@ uv build
 실제 음성과 전사 결과는 무시되는 `work/`에만 보관하고, 커밋에는 가상 fixture만 사용합니다. 개발 정본 지침은 `AGENTS.md`, `CLAUDE.md`는 그 심링크입니다.
 
 잘못된 UTF-8 입력은 `read_error`, 잘못된 구간·화자·metadata 타입은 `invalid_input`으로 반환합니다. 화자 ID에 boolean을 사용할 수 없고, `HH:MM:SS`의 음수 구성 요소도 거부합니다. 프로젝트 라이선스는 [MIT](LICENSE)입니다.
+
+
+## 통계 SDK
+
+```python
+stats = transcript.stats(speaker=2, start=60, end=90).to_dict()
+frequencies = transcript.words(top=20).to_dict()
+count = transcript.word_counts(text="확인").to_dict()
+phrase = transcript.words(text="확인 부탁", count_mode="literal").to_dict()
+```
+
+화자별 구간·문자·공백 토큰 수, 클립된 시간의 단순합과 합집합, 녹음 길이와 발화 coverage를 제공합니다. 선언 화자와 관측 화자, 미상 화자를 구별합니다. 녹음 단위로만 시간이 있는 자료는 정밀 발화시간 대신 unavailable/estimated 정보를 반환합니다. 계산 정책은 [통계 계약](docs/statistics.md)을 따릅니다.

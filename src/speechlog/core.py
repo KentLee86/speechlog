@@ -69,6 +69,7 @@ class Transcript:
     segments: tuple[Segment, ...]
     metadata: dict[str, Any]
     schema_version: int = 1
+    declared_speaker_ids: tuple[int | str, ...] | None = None
 
     @classmethod
     def load(cls, path: str | Path) -> Transcript:
@@ -145,12 +146,17 @@ class Transcript:
             if not isinstance(metadata, dict) or any(not isinstance(key, str) for key in metadata):
                 raise ValueError("metadata는 문자열 키를 가진 JSON 객체여야 합니다")
             json.dumps(metadata, allow_nan=False)
-            return cls(source_id, duration, tuple(speakers), tuple(segments), metadata)
+            declared = data.get("declared_speaker_ids", [s["id"] for s in supplied])
+            if not isinstance(declared, list) or any(isinstance(i, bool) or not isinstance(i, (str, int)) or i not in known for i in declared):
+                raise ValueError("declared_speaker_ids는 알려진 화자 ID 배열이어야 합니다")
+            if len(set(declared)) != len(declared):
+                raise ValueError("중복 declared_speaker_ids")
+            return cls(source_id, duration, tuple(speakers), tuple(segments), metadata, declared_speaker_ids=tuple(declared))
         except (KeyError, TypeError, ValueError, OverflowError) as error:
             raise SpeechlogError(str(error)) from error
 
     def to_dict(self) -> dict:
-        return {"schema_version": self.schema_version, "source_id": self.source_id, "duration": self.duration, "speakers": [asdict(s) for s in self.speakers], "segments": [asdict(s) for s in self.segments], "metadata": self.metadata}
+        return {"schema_version": self.schema_version, "source_id": self.source_id, "duration": self.duration, "speakers": [asdict(s) for s in self.speakers], "segments": [asdict(s) for s in self.segments], "metadata": self.metadata, "declared_speaker_ids": list(self.declared_speaker_ids if self.declared_speaker_ids is not None else (s.id for s in self.speakers))}
 
     def to_json(self, **kwargs) -> str:
         return json.dumps(self.to_dict(), ensure_ascii=False, **kwargs)
@@ -192,3 +198,14 @@ class Transcript:
             included.update(range(max(0, i-context_turns), min(len(self.segments), i+context_turns+1)))
         next_offset = offset + len(page) if offset + len(page) < len(indices) else None
         return QueryResult(tuple(self.segments[i] for i in sorted(included)), tuple(self.segments[i].id for i in page), len(indices), offset, limit, next_offset)
+
+    def stats(self, **filters):
+        from .stats import stats
+        return stats(self, **filters)
+
+    def words(self, *, text=None, top=None, case_sensitive=False, count_mode="token", **filters):
+        from .stats import words
+        return words(self, text=text, top=top, case_sensitive=case_sensitive, count_mode=count_mode, **filters)
+
+    def word_counts(self, **options):
+        return self.words(**options)
